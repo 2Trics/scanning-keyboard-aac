@@ -1,0 +1,10 @@
+.ngram_cache.pkl
+.ngram_cache_*.pkl
+user_sentences.txt
+user_sentences_*.txt
+__pycache__/
+.idea/
+dist/
+build/
+_bundle/
+*.spec
