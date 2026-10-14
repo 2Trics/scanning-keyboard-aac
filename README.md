@@ -1,7 +1,7 @@
 # DISCLAIMER
 AI vibe coded. It works, and that's all that matters. 
 
-The best version is in the v2 folder, just download the folder and run main. A more intuitive version is located in dist folder in the form of an application, but hasn't been updated with the latest version of the code yet.
+The best version is in the v2 folder, just download the folder and run main. A more intuitive version is stored in the application file (.exe), just download it and launch it.
 
 I hope this project will help those who need it. 
 
