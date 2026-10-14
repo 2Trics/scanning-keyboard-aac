@@ -11,7 +11,7 @@
 # ENTER / CLEAR / a letter key.
 PRED_PREFIX = "__PRED__:"
 PREDICTION_SLOTS = 4
-# Which n-gram fills the prediction row. Restart the app after changing this.
+# Which n-gram fills the prediction row (changeable live in Settings).
 #   "aac"    — limited-speech conversation (current default)
 #   "brown"  — original general-English model (NLTK Brown corpus)
 #   "care"   — needs / comfort / body / environment
@@ -26,13 +26,24 @@ PREDICTION_MODEL = ("aac")
 # outranking a word actually seen in conversation. Set False to restrict
 # suggestions to conversational vocabulary only.
 DICTIONARY_FALLBACK = True
-LAYOUT = [
-    [PRED_PREFIX] * PREDICTION_SLOTS,
-    list("ABCDEFGH"),
-    list("IJKLMNOPQ"),
-    list("RSTUVWXYZ"),
-    ["SPACE", "BACKSPACE", "ENTER", "CLEAR"],
-]
+# The three letter rows (one string per row, one key per character).
+# Editable live from the Settings window. Row 0 (predictions) and the
+# bottom row (SPACE / BACKSPACE / ENTER / CLEAR) are added around these.
+LETTER_ROWS = ["ABCDEFGH", "IJKLMNOPQ", "RSTUVWXYZ"]
+BOTTOM_ROW = ["SPACE", "BACKSPACE", "ENTER", "CLEAR"]
+
+
+def build_layout():
+    """Build the full row list from the current settings. Called at start
+    and again whenever PREDICTION_SLOTS or LETTER_ROWS change live."""
+    return (
+        [[PRED_PREFIX] * PREDICTION_SLOTS]
+        + [list(row) for row in LETTER_ROWS]
+        + [list(BOTTOM_ROW)]
+    )
+
+
+LAYOUT = build_layout()
 BLOCK_SIZE = 4
 # After this many finished words on the current line, scanning restarts
 # on the prediction row (so next-word suggestions are first). 0 turns
@@ -47,16 +58,16 @@ PRED_FOCUS_AFTER_WORDS = 1
 # have one, and a missing glyph shows up as an unreadable box. The LAYOUT
 # value is still what main.py's key-handling logic matches against, so this
 # is display-only.
-DISPLAY_LABELS = {
-    "BACKSPACE": "DEL",
-}
+BACKSPACE_LABEL = "DEL"
 
 
 def display_label(label):
     """What to draw on a key. Prediction slots show the word (or blank)."""
     if label.startswith(PRED_PREFIX):
         return label[len(PRED_PREFIX):]
-    return DISPLAY_LABELS.get(label, label)
+    if label == "BACKSPACE":
+        return BACKSPACE_LABEL
+    return label
 
 # --- Switch input ---
 # The single key that acts as the "switch". Pressing it advances the
@@ -153,6 +164,14 @@ CURSOR_WIDTH = 10
 CURSOR_HEIGHT_FRACTION = 0.7  # fraction of the text buffer's height
 CURSOR_GAP = 8                # px between the last character and the cursor
 TEXT_HINT_FONT_SIZE = 26      # size of the dim "(nothing typed yet)" hint
+
+# The text box where typed words appear. TEXT_LINES (1-3) is how many lines
+# of text it can show; the box is always the same height
+# (TEXT_BOX_HEIGHT_FRACTION of the screen), so more lines means smaller
+# text -- the keys and every other box keep their size. With more than one
+# line, long text wraps and the most recent lines are shown.
+TEXT_LINES = 1
+TEXT_BOX_HEIGHT_FRACTION = 0.14
 
 KEY_IDLE_BG = "#202020"
 KEY_IDLE_FG = "#ffffff"

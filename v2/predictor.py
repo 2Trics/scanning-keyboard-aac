@@ -31,6 +31,7 @@ import re
 from collections import Counter, defaultdict
 
 import config
+import paths
 from aac_sentences import CORPORA
 
 # --------------------------------------------------------------------------
@@ -41,6 +42,8 @@ _NLTK_OK = False
 try:
     import nltk
     from nltk.tokenize import word_tokenize as _nltk_word_tokenize
+
+    paths.configure_nltk(nltk)  # use tokenizer data bundled in the .exe, if any
 
     def _ensure_punkt():
         """True if NLTK's tokenizer data is already on this machine. Never
@@ -77,7 +80,7 @@ def _tokenize(text: str):
 # Bundled offline dictionary (fallback vocabulary)
 # --------------------------------------------------------------------------
 
-_DICT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dictionary_words.txt")
+_DICT_PATH = paths.resource_path("dictionary_words.txt")
 
 
 def _load_dictionary(path):
@@ -185,16 +188,23 @@ PRIORITY_WEIGHT = 8
 SEED_WEIGHT = 3
 USER_WEIGHT = 5
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-
 
 class Predictor:
+    # Read live so Settings changes take effect without rebuilding the model.
+    @property
+    def slots(self):
+        return int(getattr(config, "PREDICTION_SLOTS", 4))
+
+    @property
+    def dictionary_enabled(self):
+        return bool(getattr(config, "DICTIONARY_FALLBACK", True))
+
     def __init__(self, model_name=None):
         model_name = (model_name or getattr(config, "PREDICTION_MODEL", "aac")).strip().lower()
         self.model_name = model_name
-        self.slots = getattr(config, "PREDICTION_SLOTS", 4)
-        self.dictionary_enabled = getattr(config, "DICTIONARY_FALLBACK", True)
-        self._user_path = os.path.join(_HERE, f"user_sentences_{model_name}.txt")
+        # Learned sentences are user data: kept in the writable user folder
+        # (AppData when packaged), never beside the read-only .exe.
+        self._user_path = str(paths.user_path(f"user_sentences_{model_name}.txt"))
 
         weighted, vocab = self._seed(model_name)
         weighted += [(s, USER_WEIGHT) for s in self._read_user_sentences()]

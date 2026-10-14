@@ -2,6 +2,8 @@
 .ngram_cache_*.pkl
 user_sentences.txt
 user_sentences_*.txt
+settings.json
+settings.json.tmp
 __pycache__/
 .idea/
 dist/

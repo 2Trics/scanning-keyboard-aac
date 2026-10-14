@@ -139,14 +139,42 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-The first launch trains the n-gram model (and tries, briefly and
-non-blockingly, to use NLTK's `punkt` tokenizer if it's already cached);
-later launches reuse a local cache. Tkinter and `winsound` remain
-standard-library; **nltk** is an optional extra — if it isn't installed or
-there's no cached tokenizer data, a built-in tokenizer is used instead and
-everything still works fully offline.
+The n-gram model is trained from the bundled sentences at startup (a
+moment). Tkinter and `winsound` are standard-library; **nltk** is an
+optional extra — if it isn't installed or there's no cached tokenizer
+data, a built-in tokenizer is used instead and everything still works
+fully offline.
 
-Press **Escape** to quit the full-screen window.
+Press **Escape twice** to quit the full-screen window.
+
+## Standalone .exe (nothing else needed)
+
+From the repository root (one level above `v2`):
+
+```bash
+python -m pip install -r requirements-build.txt
+python build_app.py
+```
+
+This produces **`dist/ScanningKeyboard.exe`** — a single file built from
+this `v2` code. The word dictionary and NLTK tokenizer data are packed
+inside, so it needs no other files, no Python, and no internet. Send just
+that one file; the other person double-clicks it. (Windows SmartScreen
+may warn about an unsigned app from an unknown publisher the first time —
+choose *More info → Run anyway*. First launch takes a few extra seconds
+while it unpacks.)
+
+What the app writes — saved settings and sentences it learns — goes to
+`%LOCALAPPDATA%\ScanningKeyboard` on that person's machine, so the .exe
+itself is never modified. Internet access is only needed once, on the
+build machine, to fetch the tokenizer data (the build still works without
+it, using the built-in tokenizer).
+
+The build script finishes by launching the new exe with `--selftest`
+(you can run `ScanningKeyboard.exe --selftest report.txt` yourself too),
+which checks the bundled dictionary, predictions, settings save/load, the
+multi-line text box and the Settings window, and fails the build if any
+of it doesn't work.
 
 ## Using a different switch
 
@@ -155,13 +183,37 @@ to send — currently Enter. To use a different key, change `SWITCH_KEYSYM`
 in [config.py](config.py) — it accepts any Tk keysym name, e.g. `"space"`
 for the space bar, or `"F1"`.
 
+## Settings window (live changes, mouse only)
+
+Click **⚙ Settings** in the top-right corner (mouse only — it is not part
+of the scanning flow, so the switch can never trigger it). Every value
+from `config.py` can be changed there and takes effect **immediately**,
+so scan speed can be tuned while the person is actually using the
+keyboard. Scanning pauses while the window is open. Tabs: Speed & Switch,
+Prediction, Text box, Keyboard, Sound, Colors. Sliders and number boxes
+are range-limited; **Reset all to defaults** undoes everything.
+
+Changes are saved automatically to `settings.json` (next to the code when
+run from source; in `%LOCALAPPDATA%\ScanningKeyboard` for the packaged
+.exe) and re-applied on every launch. Only values that differ from the
+defaults are stored. Delete that file to start fresh.
+
+### Multi-line text box
+
+Under **Text box**, *Lines of text shown* (1–3) lets the typed text wrap
+onto up to three lines (showing the most recent lines). The box keeps the
+same height (`TEXT_BOX_HEIGHT_FRACTION`), so more lines simply means
+smaller text — the keys and every other box stay exactly the same size.
+Use *Text box height* if you also want the box itself taller or shorter.
+
 ## Tuning
 
-Everything is a named constant in [config.py](config.py):
+The defaults are named constants in [config.py](config.py) (and every one
+is also editable live from the Settings window above):
 
-- `SCAN_INTERVAL_SECONDS` (default 2s) — how long each row/block/key is
+- `SCAN_INTERVAL_SECONDS` (default 1.9s) — how long each row/block/key is
   highlighted before automatically moving to the next.
-- `AFTER_LOCK_SECONDS` (default 2.5s) — extra/fresh dwell on the **first**
+- `AFTER_LOCK_SECONDS` (default 2.1s) — extra/fresh dwell on the **first**
   option after locking a row or block. The old timer kept running through
   the press, so the first word could vanish almost immediately. The switch
   still works during this wait. Raise it if reaction after a press is slow.
@@ -181,15 +233,17 @@ Everything is a named constant in [config.py](config.py):
   block/key list with no press before that level gives up (see above).
   Lower it to recover from a mistake faster; raise it if it's giving up
   before there's been a real chance to react and press.
-- `LAYOUT` — the keyboard itself: a list of rows, each a list of key
-  labels. Row 0 is the four-slot prediction row. `SPACE`, `BACKSPACE`,
-  `ENTER`, and `CLEAR` are handled specially; every other label is typed
-  literally.
+- `LETTER_ROWS` — the three letter rows (one string per row, one key per
+  character). The prediction row on top and the `SPACE` / `BACKSPACE` /
+  `ENTER` / `CLEAR` row on the bottom are added around them by
+  `build_layout()`; `BACKSPACE_LABEL` (default `DEL`) is what its key shows.
+- `TEXT_LINES` (default 1) and `TEXT_BOX_HEIGHT_FRACTION` (default 0.14) —
+  the multi-line text box described above.
 - `PREDICTION_SLOTS` (default 4) — how many word suggestions to show.
   Kept at 4 so the prediction row is exactly one scan block (`BLOCK_SIZE`).
 - `PREDICTION_MODEL` (default `"aac"`) — which n-gram fills those slots:
   `"aac"`, `"brown"`, `"care"`, `"social"`, or any extra key you add in
-  `aac_sentences.CORPORA`. Restart after changing it.
+  `aac_sentences.CORPORA`. Takes effect live from Settings.
 - `DICTIONARY_FALLBACK` (default `True`) — whether the bundled ~77k-word
   offline dictionary tops up empty prediction slots when the
   conversational model doesn't have enough data for the current prefix.
@@ -219,7 +273,13 @@ Everything is a named constant in [config.py](config.py):
 - `aac_sentences.py` — seed conversational training sentences.
 - `main.py` — the Tkinter full-screen UI: renders the keyboard and text
   buffer on a canvas, redrawn on every scan tick and every press, and wires
-  up the switch key with debounce and the post-selection pause.
-- `config.py` — every tunable value described above.
+  up the switch key with debounce and the post-selection pause. Also holds
+  the `--selftest` mode.
+- `settings.py` / `settings_ui.py` — the list of live-editable settings
+  (ranges, validation, saving to `settings.json`) and the mouse-operated
+  Settings window.
+- `paths.py` — where bundled files vs. saved user data live (source folder
+  vs. the packaged .exe's unpack folder and `%LOCALAPPDATA%`).
+- `config.py` — the default value of everything described above.
 - `requirements.txt` — `nltk` (optional; the app runs fully offline
   without it, using a built-in tokenizer instead).

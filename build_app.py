@@ -1,135 +1,123 @@
-"""Build an offline Windows app (PyInstaller).
+"""Build the standalone Windows app (PyInstaller) from the v2 code.
 
 Run from this folder:
 
     python -m pip install -r requirements-build.txt
     python build_app.py
 
-The result is dist/ScanningKeyboard.exe — a single file you can send.
-Double-click it on the other machine. No internet is needed at runtime:
-tokenizer data and the n-gram caches are inside the exe.
+The result is dist/ScanningKeyboard.exe -- ONE file that needs nothing
+else beside it and no internet at runtime. The word dictionary and (if it
+could be fetched at build time) NLTK's tokenizer data are packed inside.
+Anything the app writes (saved settings, learned sentences) goes to
+%LOCALAPPDATA%\\ScanningKeyboard on the machine running it.
+
+After building, the exe is launched once with --selftest to prove the
+packaged program really works (see the report it prints).
 """
 
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "v2"
 BUNDLE = ROOT / "_bundle"
 DIST_NAME = "ScanningKeyboard"
-ENTRY = ROOT / "main.py"
+ENTRY = SRC / "main.py"
+
+LOCAL_MODULES = [
+    "paths", "config", "scanner", "predictor", "settings", "settings_ui",
+    "aac_sentences", "conversational_english",
+]
 
 
-def _run(args, extra_env=None):
-    env = os.environ.copy()
-    if extra_env:
-        env.update(extra_env)
+def _run(args):
     print(">", " ".join(str(a) for a in args))
-    subprocess.check_call(args, cwd=ROOT, env=env)
+    subprocess.check_call(args, cwd=ROOT)
 
 
 def prepare_nltk_data():
-    """Download tokenizer files into the bundle at *build* time only."""
-    import nltk
-
+    """Make sure NLTK's tokenizer data is in the bundle folder. Needs the
+    network at *build* time only; if it can't be fetched the app still
+    works (it falls back to a built-in tokenizer). Returns True if bundled."""
     dest = BUNDLE / "nltk_data"
-    dest.mkdir(parents=True, exist_ok=True)
-    for package in ("punkt", "punkt_tab"):
-        nltk.download(package, download_dir=str(dest), quiet=True)
-        print(f"bundled nltk package: {package}")
-    os.environ["NLTK_DATA"] = str(dest)
+    marker = dest / "tokenizers" / "punkt_tab"
+    if marker.exists():
+        print("tokenizer data already in _bundle (reusing)")
+        return True
+    try:
+        import nltk
+
+        dest.mkdir(parents=True, exist_ok=True)
+        nltk.download("punkt_tab", download_dir=str(dest), quiet=True)
+    except Exception as exc:  # no network, nltk missing, ...
+        print(f"WARNING: could not fetch tokenizer data ({exc}); building without it.")
+    if marker.exists():
+        print("bundled nltk package: punkt_tab")
+        return True
+    print("WARNING: tokenizer data not bundled; the app will use its built-in tokenizer.")
+    return False
 
 
-def train_offline_caches():
-    """Train sentence models from local files (no Brown / no network)."""
-    sys.path.insert(0, str(ROOT))
-    os.environ["NLTK_DATA"] = str(BUNDLE / "nltk_data")
-    from predictor import NgramPredictor, _cache_paths
-
-    for model_id in ("aac", "care", "social"):
-        print(f"training n-gram cache: {model_id}")
-        NgramPredictor(model_id)
-        _bundled, writable = _cache_paths(model_id)
-        if not writable.exists():
-            raise SystemExit(f"expected cache missing after train: {writable}")
-        target = BUNDLE / writable.name
-        shutil.copy2(writable, target)
-        print(f"  copied {target.name}")
-
-
-def pyinstaller_cmd():
-    nltk_data = BUNDLE / "nltk_data"
+def pyinstaller_cmd(with_nltk_data):
     sep = ";" if os.name == "nt" else ":"
-    datas = [
-        f"{nltk_data}{sep}nltk_data",
-    ]
-    for pkl in sorted(BUNDLE.glob(".ngram_cache_*.pkl")):
-        datas.append(f"{pkl}{sep}.")
+    datas = [f"{SRC / 'dictionary_words.txt'}{sep}."]
+    if with_nltk_data:
+        datas.append(f"{BUNDLE / 'nltk_data'}{sep}nltk_data")
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
         "--windowed",
         "--onefile",
         "--name", DIST_NAME,
-        "--paths", str(ROOT),
-        "--hidden-import", "nltk",
-        "--hidden-import", "nltk.tokenize",
-        "--hidden-import", "nltk.tokenize.punkt",
-        "--hidden-import", "nltk.util",
-        "--hidden-import", "paths",
-        "--hidden-import", "config",
-        "--hidden-import", "scanner",
-        "--hidden-import", "predictor",
-        "--hidden-import", "aac_sentences",
-        "--hidden-import", "conversational_english",
-        # nltk's PyInstaller hook otherwise pulls numpy/pandas/scipy/etc.
-        "--exclude-module", "numpy",
-        "--exclude-module", "pandas",
-        "--exclude-module", "matplotlib",
-        "--exclude-module", "scipy",
-        "--exclude-module", "IPython",
-        "--exclude-module", "jupyter",
-        "--exclude-module", "notebook",
-        "--exclude-module", "PIL",
-        "--exclude-module", "cv2",
-        "--exclude-module", "sklearn",
-        "--exclude-module", "pytest",
-        "--exclude-module", "setuptools",
+        "--distpath", str(ROOT / "dist"),
+        "--workpath", str(ROOT / "build"),
+        "--specpath", str(ROOT / "build"),
+        "--paths", str(SRC),
     ]
+    for module in LOCAL_MODULES:
+        cmd += ["--hidden-import", module]
+    cmd += ["--hidden-import", "nltk", "--hidden-import", "nltk.tokenize"]
+    # nltk's PyInstaller hook otherwise drags in numpy/pandas/scipy/etc.
+    for name in ("numpy", "pandas", "matplotlib", "scipy", "IPython", "jupyter",
+                 "notebook", "PIL", "cv2", "sklearn", "pytest", "setuptools"):
+        cmd += ["--exclude-module", name]
     for item in datas:
-        cmd.extend(["--add-data", item])
+        cmd += ["--add-data", item]
     cmd.append(str(ENTRY))
     return cmd
 
 
-def write_user_readme(dist_dir: Path):
-    text = (
-        "Scanning Keyboard\n"
-        "=================\n\n"
-        "Double-click ScanningKeyboard.exe to start.\n\n"
-        "This app works fully offline. Press Escape twice to quit.\n"
-        "The switch key is Enter unless the person who built this "
-        "changed it.\n"
-    )
-    (dist_dir / "README.txt").write_text(text, encoding="utf-8")
+def verify(exe):
+    """Launch the packaged exe in self-test mode and show its report."""
+    report = Path(tempfile.gettempdir()) / "scanning_keyboard_selftest.txt"
+    if report.exists():
+        report.unlink()
+    print(f"\nVerifying {exe.name} ...")
+    try:
+        result = subprocess.run([str(exe), "--selftest", str(report)], timeout=180)
+    except subprocess.TimeoutExpired:
+        raise SystemExit("self-test timed out -- the packaged app did not finish starting up")
+    text = report.read_text(encoding="utf-8") if report.exists() else "(no report written)"
+    print(text)
+    if result.returncode != 0:
+        raise SystemExit("self-test FAILED -- do not distribute this build")
 
 
 def main():
     BUNDLE.mkdir(parents=True, exist_ok=True)
-    prepare_nltk_data()
-    train_offline_caches()
-    _run(pyinstaller_cmd())
+    with_nltk = prepare_nltk_data()
+    _run(pyinstaller_cmd(with_nltk))
     exe = ROOT / "dist" / f"{DIST_NAME}.exe"
     if not exe.exists():
         raise SystemExit(f"build finished but {exe} was not created")
-    write_user_readme(ROOT / "dist")
-    print("\nDone. Send this one file:")
-    print(f"  {exe}")
-    print("The other person double-clicks it. First launch may take a few extra seconds.")
+    verify(exe)
+    print("Done. Send this one file; nothing else is needed:")
+    print(f"  {exe}  ({exe.stat().st_size / 1_000_000:.0f} MB)")
 
 
 if __name__ == "__main__":
