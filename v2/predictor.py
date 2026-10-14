@@ -214,18 +214,6 @@ class Predictor:
     def _seed(model_name):
         """(weighted_sentences, vocab) for a model. CORPORA entries are dicts
         of priority sentences, regular sentences, and extra vocabulary."""
-        if model_name == "brown":
-            # Legacy option: NLTK's Brown corpus, only if it's already on
-            # this machine. Never downloaded — falls back to aac otherwise.
-            try:
-                import nltk
-                from nltk.corpus import brown
-
-                nltk.data.find("corpora/brown")
-                return [(" ".join(s), 1) for s in brown.sents()], []
-            except Exception:
-                model_name = "aac"
-
         corpus = CORPORA.get(model_name, CORPORA["aac"])
         priority = corpus.get("priority") or []
         sentences = corpus.get("sentences") or []

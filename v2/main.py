@@ -565,6 +565,13 @@ def _selftest(report_path):
         words = len(predictor_module._DICTIONARY_WORDS)
         check("dictionary bundled", words > 50000, f"{words} words")
         lines.append(f"[INFO] NLTK tokenizer active: {predictor_module._NLTK_OK}")
+        if (paths.resource_dir() / "nltk_data").is_dir():
+            # Tokenizer data was packed into this build, so it must work.
+            ok = predictor_module._NLTK_OK
+            if ok:
+                ok = predictor_module._tokenize("How are you? I am fine.") == [
+                    "how", "are", "you", "i", "am", "fine"]
+            check("bundled NLTK tokenizer works", ok)
 
         p = Predictor()
         check("blank line -> blank slots", p.suggest("") == [""] * config.PREDICTION_SLOTS)

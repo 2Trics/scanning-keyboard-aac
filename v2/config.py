@@ -13,7 +13,6 @@ PRED_PREFIX = "__PRED__:"
 PREDICTION_SLOTS = 4
 # Which n-gram fills the prediction row (changeable live in Settings).
 #   "aac"    — limited-speech conversation (current default)
-#   "brown"  — original general-English model (NLTK Brown corpus)
 #   "care"   — needs / comfort / body / environment
 #   "social" — greetings / yes-no / family / small talk
 # Add another conversation type in aac_sentences.CORPORA, then put its name here.

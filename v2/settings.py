@@ -42,7 +42,7 @@ class Setting:
 
 def _models():
     from aac_sentences import CORPORA
-    return tuple(CORPORA) + ("brown",)
+    return tuple(CORPORA)
 
 
 G_SPEED = "Speed & Switch"
@@ -83,9 +83,9 @@ SCHEMA = [
 
     # --- Prediction ---
     Setting("PREDICTION_MODEL", "Word prediction model", G_PRED, "choice",
-            choices=("aac", "care", "social", "brown"),
+            choices=("aac", "care", "social"),
             hint="aac = everyday conversation, care = needs/comfort/body, "
-                 "social = greetings/small talk, brown = old general-English model."),
+                 "social = greetings/small talk."),
     Setting("PREDICTION_SLOTS", "Number of word suggestions", G_PRED, "int", 1, 8, 1, True),
     Setting("DICTIONARY_FALLBACK", "Fill empty suggestions from the built-in dictionary", G_PRED,
             "bool"),
@@ -159,7 +159,7 @@ def model_choices():
     try:
         return _models()
     except Exception:
-        return ("aac", "care", "social", "brown")
+        return ("aac", "care", "social")
 
 
 def _decimals(step):

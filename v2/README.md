@@ -63,9 +63,6 @@ seeds the conversational layer:
 - `aac` (default) — modern conversational English for someone who still
   thinks in full sentences: questions, opinions, family, daily life,
   health, and body parts.
-- `brown` — leftover general-English trigram from NLTK's Brown corpus, if
-  already cached locally (old newspaper wording; not recommended, and
-  silently falls back to `aac` if the corpus isn't available offline).
 - `care` / `social` — narrower slices. Add more in `aac_sentences.CORPORA`.
 
 Set `DICTIONARY_FALLBACK = False` in `config.py` to disable the dictionary
@@ -242,7 +239,7 @@ is also editable live from the Settings window above):
 - `PREDICTION_SLOTS` (default 4) — how many word suggestions to show.
   Kept at 4 so the prediction row is exactly one scan block (`BLOCK_SIZE`).
 - `PREDICTION_MODEL` (default `"aac"`) — which n-gram fills those slots:
-  `"aac"`, `"brown"`, `"care"`, `"social"`, or any extra key you add in
+  `"aac"`, `"care"`, `"social"`, or any extra key you add in
   `aac_sentences.CORPORA`. Takes effect live from Settings.
 - `DICTIONARY_FALLBACK` (default `True`) — whether the bundled ~77k-word
   offline dictionary tops up empty prediction slots when the

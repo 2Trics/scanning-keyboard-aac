@@ -254,7 +254,7 @@ SOCIAL_SENTENCES = [
 PRIORITY_SENTENCES = _dedupe(CARE_PRIORITY + SOCIAL_PRIORITY + CONVERSATION_PRIORITY)
 SENTENCES = _dedupe(CARE_SENTENCES + SOCIAL_SENTENCES + BODY_SENTENCES + CONVERSATION_SENTENCES)
 
-# Named conversation-type models. "brown" lives in predictor.py (NLTK corpus).
+# Named conversation-type models.
 CORPORA = {
     "aac": {
         "priority": PRIORITY_SENTENCES,

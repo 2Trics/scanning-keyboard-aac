@@ -18,6 +18,7 @@ packaged program really works (see the report it prints).
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -63,11 +64,26 @@ def prepare_nltk_data():
     return False
 
 
-def pyinstaller_cmd(with_nltk_data):
+def stage_english_tokenizer():
+    """Copy ONLY the English tokenizer data into a clean staging folder.
+    The full download holds every language (and older formats), which
+    would make the exe tens of MB larger for nothing."""
+    source = BUNDLE / "nltk_data" / "tokenizers" / "punkt_tab" / "english"
+    # Staged outside the project folder: OneDrive can block deleting
+    # folders inside it, which would break re-running the build.
+    slim = Path(tempfile.mkdtemp(prefix="sk_nltk_slim_"))
+    target = slim / "tokenizers" / "punkt_tab" / "english"
+    shutil.copytree(source, target)
+    size = sum(f.stat().st_size for f in target.rglob("*") if f.is_file())
+    print(f"staged English tokenizer data: {size / 1_000_000:.2f} MB")
+    return slim
+
+
+def pyinstaller_cmd(nltk_slim):
     sep = ";" if os.name == "nt" else ":"
     datas = [f"{SRC / 'dictionary_words.txt'}{sep}."]
-    if with_nltk_data:
-        datas.append(f"{BUNDLE / 'nltk_data'}{sep}nltk_data")
+    if nltk_slim:
+        datas.append(f"{nltk_slim}{sep}nltk_data")
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
@@ -78,13 +94,16 @@ def pyinstaller_cmd(with_nltk_data):
         "--workpath", str(ROOT / "build"),
         "--specpath", str(ROOT / "build"),
         "--paths", str(SRC),
+        # Our own nltk hook: don't sweep ~/nltk_data into the exe.
+        "--additional-hooks-dir", str(ROOT / "build_hooks"),
     ]
     for module in LOCAL_MODULES:
         cmd += ["--hidden-import", module]
     cmd += ["--hidden-import", "nltk", "--hidden-import", "nltk.tokenize"]
     # nltk's PyInstaller hook otherwise drags in numpy/pandas/scipy/etc.
     for name in ("numpy", "pandas", "matplotlib", "scipy", "IPython", "jupyter",
-                 "notebook", "PIL", "cv2", "sklearn", "pytest", "setuptools"):
+                 "notebook", "PIL", "cv2", "sklearn", "pytest", "setuptools",
+                 "pip", "lib2to3", "idlelib", "turtledemo"):
         cmd += ["--exclude-module", name]
     for item in datas:
         cmd += ["--add-data", item]
@@ -110,8 +129,8 @@ def verify(exe):
 
 def main():
     BUNDLE.mkdir(parents=True, exist_ok=True)
-    with_nltk = prepare_nltk_data()
-    _run(pyinstaller_cmd(with_nltk))
+    slim = stage_english_tokenizer() if prepare_nltk_data() else None
+    _run(pyinstaller_cmd(slim))
     exe = ROOT / "dist" / f"{DIST_NAME}.exe"
     if not exe.exists():
         raise SystemExit(f"build finished but {exe} was not created")
